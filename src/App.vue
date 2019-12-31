@@ -10,7 +10,7 @@
       </div>
     </div>
     <div id="svg-container" :style="{zIndex: 1}"></div>
-    <div class="items-masks-container" :style="{zIndex: 2}">
+    <div class="items-masks-container" :style="{zIndex: 2}" @mousemove="move" @touchmove="mobileMove">
       <div class="mask" v-for="(item, index) in items" :key="'mask-' + index" :id="'mask-' + index">
       </div>
     </div>
@@ -31,25 +31,42 @@ export default {
   }),
 
   methods: {
-    backgroundColor (index) {
+    backgroundColor(index) {
       return '#' + ('000000000000000000' + (1000000 * index).toString('16')).substr(-6)
+    },
+
+    clear(x, y, size = 100, color = '#000') {
+      this.mask.add(
+        this.draw.circle(size).center(x, y).fill({ color })
+      )
+    },
+
+    move(ev) {
+      this.clear(ev.clientX, ev.clientY)
+    },
+
+    mobileMove(ev) {
+      const { clientX, clientY } = ev.changedTouches[0]
+      this.clear(clientX, clientY, 50)
     }
   },
 
-  created () {
+  created() {
 
   },
 
-  mounted () {
+  mounted() {
     this.draw = this.$svg('svg-container').size('100%', '100%')
     
-    const image = this.draw.image('https://i.pinimg.com/originals/61/e7/8b/61e78b08a8dd18779132812218a9f2a8.jpg')
+    const image = this.draw.image('https://upload.wikimedia.org/wikipedia/commons/a/a9/Japanese_Wave_Pattern.svg').attr('preserveAspectRatio', 'xMaxYMax slice').size('100%', '100%')
     const rect = this.draw.rect('100%', '100%').fill({ color: '#fff' })
     const circle = this.draw.circle(100).fill({ color: '#000' })
 
     this.mask = this.draw.mask().add(rect).add(circle)
     
     image.maskWith(this.mask)
+    setTimeout(() => this.clear(200, 200, '#777'), 3000)
+    setTimeout(() => this.clear(220, 220, '#000'), 6000)
   }
 }
 </script>
