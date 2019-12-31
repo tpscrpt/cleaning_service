@@ -1,0 +1,1 @@
+export default (window) => (window.innerWidth > window.innerHeight ? window.innerWidth : window.innerHeight) / 10
