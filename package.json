@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "core-js": "^3.4.4",
+    "mathjs": "^6.3.0",
     "svg.js": "^2.7.1",
     "vue": "^2.6.10"
   },

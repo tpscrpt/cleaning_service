@@ -22,7 +22,7 @@
 </template>
 
 <script>
-import { getCircleSize } from './utils'
+import * as math from 'mathjs'
 
 export default {
   name: 'app',
@@ -31,7 +31,7 @@ export default {
   },
 
   data: () => ({
-    items: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+    items: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
     draw: null,
     movements: 0,
     width: window.innerWidth,
@@ -41,7 +41,9 @@ export default {
     constants: {
       hash: '#',
       zeroPrefix: '000000000000000000',
-      size: getCircleSize(window)
+      size: null,
+      halfSize: null,
+      replacementMatrix: null
     }
 
   }),
@@ -60,25 +62,28 @@ export default {
       // extract mouse location variables
       const { clientX: x, clientY: y } = !mobile ? ev : ev.changedTouches[0]
 
+      if (math.subset(this.grid, math.index(x, y)) === 1) {
+        //if (!mobile) return
+
+      }
+
       // Make SVG around mouse location transparent
       this.mask.add(
-        this.draw.rect(this.constants.size)
+        this.draw.rect(this.constants.size, this.constants.size)
                  .radius(this.constants.size / 10)
                  .center(x, y)
                  .fill({ color: '#000' })
       )
 
-      let size = this.constants.size
-      size = size % 2 == 0 ? size : size - 1
-
       // mark grid layer as masked around mouse area
       // we can now know which part of the site is
       // free of clutter for the user
-      for (let i = 0; i < size; i ++) {
-        for (let j = 0; j < size; j ++) {
-          this.grid[x - size/2 + i][y - size / 2 + j] = 1
-        }
-      }
+      this.grid.subset(
+        math.index(
+          math.range(this.pos(x - this.constants.halfSize), this.pos(x + this.constants.halfSize)),
+          math.range(this.pos(y - this.constants.halfSize), this.pos(y + this.constants.halfSize))),
+        this.cut(x, y)
+      )
 
       // Increment and save value of number of mouse movements
       const movements = this.movements ++
@@ -109,34 +114,54 @@ export default {
       if (this.lastExpanded > Date.now() - 1000) return
       this.lastExpanded = Date.now()
   
-      this.constants.size = getCircleSize(window)
+      this.setCircleSize()
+      this.setHalfSize()
+      this.setReplacementMatrix()
 
-      const oldWidth = this.grid.length
-      const oldHeight = this.grid[0].length
+      const gridSize = math.size(this.grid)
+      const oldWidth = gridSize[0]
+      const oldHeight = gridSize[1]
       this.width = window.innerWidth
       this.height = window.innerHeight
       
-      // add new width column for width difference
-      if (oldWidth < this.width) {
-        const difference = this.width - oldWidth
-        const col = new Array(this.height)
-        col.fill(0)
+      this.grid.resize([
+        this.width > oldWidth ? this.width : oldWidth,
+        this.height > oldHeight ? this.height : oldHeight
+      ])
+    },
 
-        for (let i = 0; i < difference; i ++) {
-          this.grid.push(col)
-        }
-      }
+    setCircleSize() {
+      this.constants.size = 
+        (window.innerWidth > window.innerHeight ? 
+         window.innerWidth : window.innerHeight) / 10
+    },
+    setHalfSize() {
+      let size = Math.floor(this.constants.size)
+      size = size % 2 == 0 ? size : size - 1
+      this.constants.halfSize = size / 2
+    },
+    setReplacementMatrix() {
+      this.constants.replacementMatrix = math.ones(this.constants.halfSize * 2, this.constants.halfSize * 2)
+    },
+    pos(val) {
+      return val > 0 ? val : 0
+    },
+    cut(x, y) {
+      const matrix = this.constants.replacementMatrix
+      const halfSize = this.constants.halfSize
 
-      // extend each old height column by the difference
-      if (this.height > oldHeight) {
-        const difference = this.height - oldHeight
-        const extension = new Array(difference)
-        extension.fill(0)
+      const cutX = x - halfSize < 0
+      const cutY = y - halfSize < 0
 
-        for (let i = 0; i < oldWidth; i ++) {
-          this.grid[i].push(...extension)
-        }
-      }
+      return !cutX && !cutY ?
+        matrix :
+        math.subset(
+          matrix,
+          math.index(
+            cutX ? math.range(Math.abs(x - halfSize), halfSize * 2) : math.range(0, halfSize * 2),
+            cutY ? math.range(Math.abs(y - halfSize), halfSize * 2) : math.range(0, halfSize * 2)
+          )
+        ) 
     }
   },
 
@@ -146,10 +171,10 @@ export default {
 
   mounted() {
     // populate the tracking grid based on screen dimensions
-    const col = new Array(this.height)
-    col.fill(0)
-    this.grid = new Array(this.width)
-    this.grid.fill(col)
+    this.grid = math.zeros(this.width, this.height)
+    this.setCircleSize()
+    this.setHalfSize()
+    this.setReplacementMatrix()
 
     // mount the svg layer (interaction setup)
     this.draw = this.$svg('svg-container').size('100%', '100%')
