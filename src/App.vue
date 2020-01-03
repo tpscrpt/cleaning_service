@@ -1,10 +1,16 @@
 <template>
   <div id="app">
-    <div class="items-masks-container" :style="{zIndex: 0}">
-      <div class="item" v-for="(item, index) in items" :key="'item-' + index" :id="'item-' + index"
+    <div class="items-masks-container"
+      :style="{zIndex: 0}"
+    >
+      <div class="item"
+        v-for="(item, index) in items"
+        :key="'item-' + index"
+        :id="'item-' + index"
         :style="{
           backgroundColor: backgroundColor(index)
         }"
+        @click="() => open(index)"
       >
         <span>{{item}}</span>
       </div>
@@ -12,8 +18,16 @@
 
     <div id="svg-container" :style="{zIndex: 1}"></div>
 
-    <div class="items-masks-container" :style="{zIndex: 2}" @mousemove="move" @touchmove="(ev) => move(ev, true)">
-      <div class="mask" v-for="(item, index) in items" :key="'mask-' + index" :id="'mask-' + index">
+    <div class="items-masks-container"
+      :style="{zIndex: 2}"
+      @mousemove="move" @touchmove="(ev) => move(ev, true)"
+    >
+      <div class="mask"
+        v-for="(item, index) in items"
+        :key="'mask-' + index"
+        :id="'mask-' + index"
+        @click="(ev) => click(ev, index)"
+      >
       </div>
     </div>
 
@@ -31,7 +45,7 @@ export default {
   },
 
   data: () => ({
-    items: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+    items: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4],
     draw: null,
     movements: 0,
     width: window.innerWidth,
@@ -56,16 +70,25 @@ export default {
               (1000000 * index * Math.random()).toString('16')
             ).substr(-6)
     },
+    open(index) {
+      //eslint-disable-next-line
+      console.log(index)
+    },
+    click(ev, index) {
+      const { clientX: x, clientY: y } = ev
+
+      if (math.subset(this.grid, math.index(x, y)) === 1) 
+        document.getElementById(`item-${index}`)
+        .dispatchEvent(new Event('click'))
+    },
 
     // "Cleaning" part of the UI to see the website's content
     move(ev, mobile = false) {
       // extract mouse location variables
       const { clientX: x, clientY: y } = !mobile ? ev : ev.changedTouches[0]
 
-      if (math.subset(this.grid, math.index(x, y)) === 1) {
-        //if (!mobile) return
-
-      }
+      // check if area was already cleaned
+      // const wasCleaned = math.subset(this.grid, math.index(x, y)) === 1
 
       // Make SVG around mouse location transparent
       this.mask.add(
@@ -78,6 +101,7 @@ export default {
       // mark grid layer as masked around mouse area
       // we can now know which part of the site is
       // free of clutter for the user
+      this.open([this.pos(x - this.constants.halfSize), this.pos(x + this.constants.halfSize), this.pos(y - this.constants.halfSize), this.pos(y + this.constants.halfSize)])
       this.grid.subset(
         math.index(
           math.range(this.pos(x - this.constants.halfSize), this.pos(x + this.constants.halfSize)),
@@ -85,13 +109,14 @@ export default {
         this.cut(x, y)
       )
 
+
       // Increment and save value of number of mouse movements
       const movements = this.movements ++
 
       // every X mousemovements, nag the user by appending a div
       // near their mouse location (because they hate cleaning,
       // should hire us)
-      if (movements % 84 === 0 && movements < 700) {
+      if (movements % 80 === 0 && movements < 500) {
         const nagContainer = document.createElement('div')
         const nagMessage = document.createElement('span')
           nagMessage.innerText = 'TEST!'
@@ -118,7 +143,9 @@ export default {
       this.setHalfSize()
       this.setReplacementMatrix()
 
-      const gridSize = math.size(this.grid)
+      const gridSize = math.size(this.grid)._data
+      //eslint-disable-next-line
+      console.log(gridSize)
       const oldWidth = gridSize[0]
       const oldHeight = gridSize[1]
       this.width = window.innerWidth
@@ -144,24 +171,24 @@ export default {
       this.constants.replacementMatrix = math.ones(this.constants.halfSize * 2, this.constants.halfSize * 2)
     },
     pos(val) {
-      return val > 0 ? val : 0
+      return val > 0 ? Math.floor(val) : 0
     },
     cut(x, y) {
       const matrix = this.constants.replacementMatrix
       const halfSize = this.constants.halfSize
 
-      const cutX = x - halfSize < 0
-      const cutY = y - halfSize < 0
+      const cutX = x - halfSize <= 0
+      const cutY = y - halfSize <= 0
 
       return !cutX && !cutY ?
         matrix :
         math.subset(
           matrix,
           math.index(
-            cutX ? math.range(Math.abs(x - halfSize), halfSize * 2) : math.range(0, halfSize * 2),
-            cutY ? math.range(Math.abs(y - halfSize), halfSize * 2) : math.range(0, halfSize * 2)
+            cutX ? math.range(Math.ceil(Math.abs(x - halfSize)), halfSize * 2) : math.range(0, halfSize * 2),
+            cutY ? math.range(Math.ceil(Math.abs(y - halfSize)), halfSize * 2) : math.range(0, halfSize * 2)
           )
-        ) 
+        )
     }
   },
 
@@ -179,7 +206,12 @@ export default {
     // mount the svg layer (interaction setup)
     this.draw = this.$svg('svg-container').size('100%', '100%')
     
-    const image = this.draw.image('https://upload.wikimedia.org/wikipedia/commons/a/a9/Japanese_Wave_Pattern.svg').attr('preserveAspectRatio', 'xMaxYMax slice').size('100%', '100%')
+    const image = this.draw.image('https://upload.wikimedia.org/wikipedia/commons/a/a9/Japanese_Wave_Pattern.svg')
+      .size('100%', '100%')
+      
+    if (window.chrome) image.attr('class', 'chrome-fix').attr('preserveAspectRatio', 'none')
+    else image.attr('preserveAspectRatio', 'xMinYMax slice')
+
     const rect = this.draw.rect('100%', '100%').fill({ color: '#fff' })
     const circle = this.draw.circle(100).fill({ color: '#000' })
 
@@ -195,8 +227,10 @@ export default {
 
 <style>
 body {
-  margin: 0
+  margin: 0;
+  overflow: hidden;
 }
+
 #svg-container {
   width: 100%;
   height: 100%;
@@ -204,6 +238,7 @@ body {
   top: 0;
   left: 0;
   bottom: 0;
+  overflow: hidden
 }
 .items-masks-container {
   display: flex;
@@ -216,6 +251,7 @@ body {
   align-items: flex-start;
   justify-content: center;
   align-content: flex-start;
+  overflow: hidden;
 }
 .item, .mask {
   width: 15vmax;
@@ -231,6 +267,7 @@ body {
   width: 100%;
   height: 100%;
   z-index: 1;
+  overflow: hidden;
 }
 .nags-container > div {
   position: absolute;
@@ -238,7 +275,18 @@ body {
   height: 50px;
   animation: disappear 3s forwards;
 }
-
+@media (orientation: landscape) {
+  .chrome-fix {
+    width: 100vw;
+    height: 100vw;
+  }
+}
+@media (orientation: portrait) {
+  .chrome-fix {
+    width: 100vh;
+    height: 100vh;
+  }
+}
 @keyframes disappear {
   0% {
     opacity: 1
