@@ -8,11 +8,22 @@
         :key="'item-' + index"
         :id="'item-' + index"
         :style="{
-          backgroundColor: backgroundColor(index)
+          width:  constants.sizing ? constants.sizing + 'px' : 0,
+          height: constants.sizing ? constants.sizing + 'px' : 0,
         }"
         @click="() => open(index)"
       >
-        <span>{{item}}</span>
+        <div
+          :style="{
+            width: '100%',
+            height: '100%'
+          }"
+        >
+          <img :src="item.img" class="item-svg"
+            width="100%"
+            preserveAspectRatio="xMidYMid meet"
+          />
+        </div>
       </div>
     </div>
 
@@ -27,16 +38,26 @@
         :key="'mask-' + index"
         :id="'mask-' + index"
         @click="(ev) => click(ev, index)"
+        :style="{
+          width:  constants.sizing ? constants.sizing + 'px' : 0,
+          height: constants.sizing ? constants.sizing + 'px' : 0,
+        }"
       >
       </div>
     </div>
 
     <div class="nags-container" ref="nags-container"></div>
+
+    <div v-if="info != null" class="info-container">
+      <span @click="close">{{items[info].message}}</span>
+    </div>
+
   </div>
 </template>
 
 <script>
 import * as math from 'mathjs'
+import _items from './items'
 
 export default {
   name: 'app',
@@ -45,19 +66,21 @@ export default {
   },
 
   data: () => ({
-    items: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4],
+    items: _items,
     draw: null,
     movements: 0,
     width: window.innerWidth,
     height: window.innerHeight,
     grid: null,
+    info: null,
     
     constants: {
       hash: '#',
       zeroPrefix: '000000000000000000',
       size: null,
       halfSize: null,
-      replacementMatrix: null
+      replacementMatrix: null,
+      sizing: null
     }
 
   }),
@@ -71,13 +94,15 @@ export default {
             ).substr(-6)
     },
     open(index) {
-      //eslint-disable-next-line
-      console.log(index)
+      this.info = index
+    },
+    close() {
+      this.info = null
     },
     click(ev, index) {
       const { clientX: x, clientY: y } = ev
 
-      if (math.subset(this.grid, math.index(x, y)) === 1) 
+      if (this.grid._data[x][y]) 
         document.getElementById(`item-${index}`)
         .dispatchEvent(new Event('click'))
     },
@@ -101,7 +126,7 @@ export default {
       // mark grid layer as masked around mouse area
       // we can now know which part of the site is
       // free of clutter for the user
-      this.open([this.pos(x - this.constants.halfSize), this.pos(x + this.constants.halfSize), this.pos(y - this.constants.halfSize), this.pos(y + this.constants.halfSize)])
+      //this.open([this.pos(x - this.constants.halfSize), this.pos(x + this.constants.halfSize), this.pos(y - this.constants.halfSize), this.pos(y + this.constants.halfSize)])
       this.grid.subset(
         math.index(
           math.range(this.pos(x - this.constants.halfSize), this.pos(x + this.constants.halfSize)),
@@ -142,10 +167,10 @@ export default {
       this.setCircleSize()
       this.setHalfSize()
       this.setReplacementMatrix()
+      this.setItemSize()
 
       const gridSize = math.size(this.grid)._data
-      //eslint-disable-next-line
-      console.log(gridSize)
+
       const oldWidth = gridSize[0]
       const oldHeight = gridSize[1]
       this.width = window.innerWidth
@@ -169,6 +194,29 @@ export default {
     },
     setReplacementMatrix() {
       this.constants.replacementMatrix = math.ones(this.constants.halfSize * 2, this.constants.halfSize * 2)
+    },
+    setItemSize() {
+      const items = this.items.length
+      const width = this.width
+      const height = this.height
+
+      const x = width, y = height, n = items
+      const px = Math.ceil(Math.sqrt(n * x / y))
+      let sx , sy
+
+      if(Math.floor(px * y / x) * px < n)  //does not fit, y/(x/px)=px*y/x
+        sx = y / Math.ceil(px * y / x)
+      else
+        sx = x / px
+      
+      let py = Math.ceil(Math.sqrt(n * y / x))
+
+      if(Math.floor(py * x / y) * py < n)  //does not fit
+        sy = x / Math.ceil(x * py / y)
+      else
+        sy = y / py
+      
+      this.constants.sizing = sy > sx ? sy : sx
     },
     pos(val) {
       return val > 0 ? Math.floor(val) : 0
@@ -199,9 +247,7 @@ export default {
   mounted() {
     // populate the tracking grid based on screen dimensions
     this.grid = math.zeros(this.width, this.height)
-    this.setCircleSize()
-    this.setHalfSize()
-    this.setReplacementMatrix()
+    this.expand()
 
     // mount the svg layer (interaction setup)
     this.draw = this.$svg('svg-container').size('100%', '100%')
@@ -213,9 +259,8 @@ export default {
     else image.attr('preserveAspectRatio', 'xMinYMax slice')
 
     const rect = this.draw.rect('100%', '100%').fill({ color: '#fff' })
-    const circle = this.draw.circle(100).fill({ color: '#000' })
 
-    this.mask = this.draw.mask().add(rect).add(circle)
+    this.mask = this.draw.mask().add(rect)
 
     image.maskWith(this.mask)
 
@@ -248,18 +293,24 @@ body {
   position: absolute;
   top: 0;
   left: 0;
-  align-items: flex-start;
+  align-items:baseline;
   justify-content: center;
-  align-content: flex-start;
+  align-content: space-around;
   overflow: hidden;
+  user-select: none;
 }
 .item, .mask {
-  width: 15vmax;
-  height: 15vmax;
   display: flex;
   align-items: center;
   justify-content: center;
 }
+.item > div, .mask > div {
+  margin: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .nags-container {
   position: absolute;
   top: 0;
@@ -275,6 +326,19 @@ body {
   height: 50px;
   animation: disappear 3s forwards;
 }
+
+.info-container {
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
 @media (orientation: landscape) {
   .chrome-fix {
     width: 100vw;
