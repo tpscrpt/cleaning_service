@@ -1,57 +1,62 @@
 <template>
   <div id="app">
-    <div class="items-masks-container"
-      :style="{zIndex: 0}"
-    >
-      <div class="item"
-        v-for="(item, index) in items"
-        :key="'item-' + index"
-        :id="'item-' + index"
-        :style="{
-          width:  constants.sizing ? constants.sizing + 'px' : 0,
-          height: constants.sizing ? constants.sizing + 'px' : 0,
-        }"
-        @click="() => open(index)"
+    <div id="content" v-show="wasmLoaded">
+      <div class="items-masks-container"
+        :style="{zIndex: 0}"
       >
-        <div
+        <div class="item"
+          v-for="(item, index) in items"
+          :key="'item-' + index"
+          :id="'item-' + index"
           :style="{
-            width: '100%',
-            height: '100%'
+            width:  constants.sizing ? constants.sizing + 'px' : 0,
+            height: constants.sizing ? constants.sizing + 'px' : 0,
           }"
+          @click="() => open(index)"
         >
-          <img :src="item.img" class="item-svg"
-            width="100%"
-            preserveAspectRatio="xMidYMid meet"
-          />
+          <div
+            :style="{
+              width: '100%',
+              height: '100%'
+            }"
+          >
+            <img :src="item.img" class="item-svg"
+              width="100%"
+              preserveAspectRatio="xMidYMid meet"
+            />
+          </div>
         </div>
       </div>
-    </div>
 
-    <div id="svg-container" :style="{zIndex: 1}"></div>
+      <div id="svg-container" :style="{zIndex: 1}"></div>
 
-    <div class="items-masks-container"
-      :style="{zIndex: 2}"
-      @mousemove="move" @touchmove="(ev) => move(ev, true)"
-    >
-      <div class="mask"
-        v-for="(item, index) in items"
-        :key="'mask-' + index"
-        :id="'mask-' + index"
-        @click="(ev) => click(ev, index)"
-        :style="{
-          width:  constants.sizing ? constants.sizing + 'px' : 0,
-          height: constants.sizing ? constants.sizing + 'px' : 0,
-        }"
+      <div class="items-masks-container"
+        :style="{zIndex: 2}"
+        @mousemove="move" @touchmove="(ev) => move(ev, true)"
       >
+        <div class="mask"
+          v-for="(item, index) in items"
+          :key="'mask-' + index"
+          :id="'mask-' + index"
+          @click="(ev) => click(ev, index)"
+          :style="{
+            width:  constants.sizing ? constants.sizing + 'px' : 0,
+            height: constants.sizing ? constants.sizing + 'px' : 0,
+          }"
+        >
+        </div>
       </div>
+
+      <div class="nags-container" ref="nags-container"></div>
+
+      <div v-if="info != null" class="info-container">
+        <span @click="close">{{items[info].message}}</span>
+      </div>
+
     </div>
-
-    <div class="nags-container" ref="nags-container"></div>
-
-    <div v-if="info != null" class="info-container">
-      <span @click="close">{{items[info].message}}</span>
+    <div id="loader" v-if="!wasmLoaded">
+      <span>testing</span>
     </div>
-
   </div>
 </template>
 
@@ -73,7 +78,10 @@ export default {
     height: window.innerHeight,
     grid: null,
     info: null,
-    
+    wasmLoaded: false,
+    wasm: null,
+    mousedown: false,
+
     constants: {
       hash: '#',
       zeroPrefix: '000000000000000000',
@@ -102,15 +110,17 @@ export default {
     click(ev, index) {
       const { clientX: x, clientY: y } = ev
 
-      if (this.grid._data[x][y]) 
+      if (this.$grid.get_cell(y, x) === 1)
         document.getElementById(`item-${index}`)
-        .dispatchEvent(new Event('click'))
+          .dispatchEvent(new Event('click'))
+
     },
 
     // "Cleaning" part of the UI to see the website's content
     move(ev, mobile = false) {
       // extract mouse location variables
       const { clientX: x, clientY: y } = !mobile ? ev : ev.changedTouches[0]
+      if (!this.mousedown && !mobile) return
 
       // check if area was already cleaned
       // const wasCleaned = math.subset(this.grid, math.index(x, y)) === 1
@@ -127,13 +137,7 @@ export default {
       // we can now know which part of the site is
       // free of clutter for the user
       //this.open([this.pos(x - this.constants.halfSize), this.pos(x + this.constants.halfSize), this.pos(y - this.constants.halfSize), this.pos(y + this.constants.halfSize)])
-      this.grid.subset(
-        math.index(
-          math.range(this.pos(x - this.constants.halfSize), this.pos(x + this.constants.halfSize)),
-          math.range(this.pos(y - this.constants.halfSize), this.pos(y + this.constants.halfSize))),
-        this.cut(x, y)
-      )
-
+      this.$grid.clean(y, x, this.constants.halfSize)
 
       // Increment and save value of number of mouse movements
       const movements = this.movements ++
@@ -141,7 +145,7 @@ export default {
       // every X mousemovements, nag the user by appending a div
       // near their mouse location (because they hate cleaning,
       // should hire us)
-      if (movements % 80 === 0 && movements < 500) {
+      if (movements && movements % 80 === 0 && movements < 500 || movements === 15) {
         const nagContainer = document.createElement('div')
         const nagMessage = document.createElement('span')
           nagMessage.innerText = 'TEST!'
@@ -149,8 +153,12 @@ export default {
         nagContainer.appendChild(nagMessage)
         nagContainer.style.left = x + 'px'
         nagContainer.style.top = y + 'px'
-        nagContainer.style.transform = `translateX(${Math.random() * 10 + 'vw'}),`
-                                     + `translateY(${Math.random() * 10 + 'vh'})`
+
+        let translateX = (Math.random() - 0.5) * 2
+        let translateY = (Math.random() - 0.5) * 2
+        let rotate = (Math.random() - 0.5) * 2
+
+        nagContainer.style.transform = `translate(${translateX * 10 + 'vw'}, ${translateY * 10 + 'vh'}) rotate(${rotate * 35 + 'deg'})`
 
         this.$refs['nags-container'].appendChild(nagContainer)
         
@@ -160,29 +168,21 @@ export default {
     },
 
     expand() {
-      // prevent resizing too many times during 1 action
-      if (this.lastExpanded > Date.now() - 1000) return
-      this.lastExpanded = Date.now()
-  
-      this.setCircleSize()
+      this.setSize()
       this.setHalfSize()
       this.setReplacementMatrix()
       this.setItemSize()
 
-      const gridSize = math.size(this.grid)._data
-
-      const oldWidth = gridSize[0]
-      const oldHeight = gridSize[1]
+      const oldWidth = this.width
+      const oldHeight = this.height
       this.width = window.innerWidth
       this.height = window.innerHeight
       
-      this.grid.resize([
-        this.width > oldWidth ? this.width : oldWidth,
-        this.height > oldHeight ? this.height : oldHeight
-      ])
+      if (this.width > oldWidth || this.height > oldHeight)
+        this.$grid.expand(this.height, this.width)
     },
 
-    setCircleSize() {
+    setSize() {
       this.constants.size = 
         (window.innerWidth > window.innerHeight ? 
          window.innerWidth : window.innerHeight) / 10
@@ -218,36 +218,24 @@ export default {
       
       this.constants.sizing = sy > sx ? sy : sx
     },
-    pos(val) {
-      return val > 0 ? Math.floor(val) : 0
-    },
-    cut(x, y) {
-      const matrix = this.constants.replacementMatrix
-      const halfSize = this.constants.halfSize
 
-      const cutX = x - halfSize <= 0
-      const cutY = y - halfSize <= 0
-
-      return !cutX && !cutY ?
-        matrix :
-        math.subset(
-          matrix,
-          math.index(
-            cutX ? math.range(Math.ceil(Math.abs(x - halfSize)), halfSize * 2) : math.range(0, halfSize * 2),
-            cutY ? math.range(Math.ceil(Math.abs(y - halfSize)), halfSize * 2) : math.range(0, halfSize * 2)
-          )
-        )
+    async setup() {
+      this.Grid = (await this.$wasm).Grid
+      this.$grid = this.Grid.new(this.height, this.width)
+      this.wasmLoaded = true
     }
   },
 
-  created() {
-
-  },
+  created() {},
 
   mounted() {
     // populate the tracking grid based on screen dimensions
-    this.grid = math.zeros(this.width, this.height)
+    this.setup()
+
     this.expand()
+
+    document.body.onmousedown = () => this.mousedown = true
+    document.body.onmouseup = () => this.mousedown = false
 
     // mount the svg layer (interaction setup)
     this.draw = this.$svg('svg-container').size('100%', '100%')
@@ -271,6 +259,10 @@ export default {
 </script>
 
 <style>
+@font-face {
+font-family: "Babylove";
+  src: url("./assets/Babylove.ttf");
+}
 body {
   margin: 0;
   overflow: hidden;
@@ -312,6 +304,8 @@ body {
 }
 
 .nags-container {
+  font-family: Babylove;
+  font-size: 4rem;
   position: absolute;
   top: 0;
   left: 0;
@@ -337,6 +331,18 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
+}
+
+#loader {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: red
 }
 
 @media (orientation: landscape) {

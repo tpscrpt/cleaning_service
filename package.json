@@ -11,7 +11,8 @@
     "core-js": "^3.4.4",
     "mathjs": "^6.3.0",
     "svg.js": "^2.7.1",
-    "vue": "^2.6.10"
+    "vue": "^2.6.10",
+    "wasm": "file:./wasm/pkg"
   },
   "devDependencies": {
     "@vue/cli-plugin-babel": "^4.1.0",
@@ -28,8 +29,7 @@
       "node": true
     },
     "extends": [
-      "plugin:vue/essential",
-      "eslint:recommended"
+      "plugin:vue/essential"
     ],
     "rules": {},
     "parserOptions": {
