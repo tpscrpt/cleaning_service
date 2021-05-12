@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "core-js": "^3.4.4",
-    "mathjs": "^6.3.0",
+    "mathjs": "^7.5.1",
     "svg.js": "^2.7.1",
     "vue": "^2.6.10",
     "wasm": "file:./wasm/pkg"
